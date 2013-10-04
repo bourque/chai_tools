@@ -10,8 +10,8 @@ essential to have obj_dict.dat, subcat_in.dat and subcat_lookup.py files in the
 current working directory.
 
 VERSION:
-01 - input should contain id, object name, hs subject category and distance
-     (pipe-separated)
+02 - input should contain id, object name, hs subject category and distance
+     (%-separated).  The distance is optional.
 
 AUTHOR:
 Matthew Bourque
@@ -19,7 +19,7 @@ Space Telescope Science Institute
 bourque@stsci.edu
 
 LAST UPDATED:
-07/29/12 (Bourque)
+08/30/12 (Bourque)
 '''
 
 import os
@@ -35,14 +35,16 @@ def assign_letter(distance):
     the object's distance.
     '''
     
-    if distance.isdigit() == True:
+    if distance == '':
+        return ''
+    elif distance.isdigit() == True:
         if int(distance) < 1:
             return 'A.'
         elif 1 < int(distance) < 40000:
             return 'B.'
         elif 40000 < int(distance) < 100000000:
             return 'C.'
-        elif 100000000 < int(distance):
+        elif 100000000 <= int(distance):
             return 'D.'
     else:
         return 'E.'
@@ -107,9 +109,9 @@ def prep_image_info(image_info):
     
     for item in image_info:
         info_elements = [x for x in item.split('-')]
-        year.append(info_elements[2])
-        release.append(info_elements[3])
-        image.append(info_elements[4])
+        year.append(info_elements[0])
+        release.append(info_elements[1])
+        image.append(info_elements[2])
   
     return year, release, image
     
@@ -144,25 +146,19 @@ def read_data_file(root):
     distance and hubblesite category
     '''
     
-    (image_info, object, hs_subcat, distance) = [], [], [], []
+    (image_info, hs_subcat, object, distance) = [], [], [], []
     
     # Construct lists for each variable
     print '\n*** Reading in data from subcat_in.dat ***\n'
     for line in file(root + 'subcat_in.dat'):
-        line_elements = [x for x in line.split('|')]
+        line_elements = [x for x in line.split('%')]
 
         image_info.append(line_elements[0])
-        object.append(line_elements[1])
-        hs_subcat.append(line_elements[2])
+        hs_subcat.append(line_elements[1])
+        object.append(line_elements[2])
         distance.append(line_elements[3])
-    
-    # Strip newline character from items in distance
-    tmp = []
-    for item in distance:
-        tmp.append(item.rstrip('\n'))
-    distance = tmp
 
-    return image_info, object, hs_subcat, distance
+    return image_info, hs_subcat, object, distance
 
 # -----------------------------------------------------------------------------
 
@@ -223,7 +219,7 @@ def subcat_lookup():
     root = os.getcwd() + '/'
 
     # Read in data
-    image_info, object, hs_subcat, distance = read_data_file(root)
+    image_info, hs_subcat, object, distance = read_data_file(root)
     
     # Prep data for other functions
     year, release, image = prep_image_info(image_info)
@@ -242,7 +238,7 @@ def subcat_lookup():
     write_output(root)
             
     print '\nOutput file written to', root + 'subcat_out.dat\n'
-    
+   
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
