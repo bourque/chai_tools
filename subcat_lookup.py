@@ -10,8 +10,9 @@ essential to have obj_dict.dat, subcat_in.dat and subcat_lookup.py files in the
 current working directory.
 
 VERSION:
-05 - A small adjustment from version 03 to handel distances in lightyears
-     instead of parsecs. Also, the input should be separated by "|%"
+07 - Handles distances in LY and distances of letter 'D', in which an avm letter
+     of 'D' is used in the avm_number.  Also adds all information to the object
+     dictionary.  Also handels redshifts that begin with '-,'
 
 AUTHOR:
 Matthew Bourque
@@ -19,13 +20,15 @@ Space Telescope Science Institute
 bourque@stsci.edu
 
 LAST UPDATED:
-09/24/12 (Bourque)
+10/23/12 (Bourque)
 '''
 
 import os
 import sys
-import subcat_dictionary
-from subcat_dictionary import *
+import hs2avm_number
+from hs2avm_number import hs2avm_number
+import hs2avm_word
+from hs2avm_word import hs2avm_word
 
 # -----------------------------------------------------------------------------
 
@@ -35,22 +38,29 @@ def assign_letter(subject_category, distance):
     the object's distance.
     '''
 
-    parsec2ly = 3.26163344
-    
+    # Set letter specifically for Magellanic Clouds
     if subject_category == 'Galaxy > Magellanic Clouds':
         return 'C.'
     if subject_category == 'Galaxy > Magellanic Cloud':
         return 'C.'
+
+    # Set letter specifically for distance of 'D'
+    if distance == 'D' or distance[0:2] == '-,':
+        return 'D.'
+        
+    # Return no letter if no subject category is given
     if distance == '':
         return ''
+        
+    # Determine letter via distance    
     elif distance.isdigit() == True:
-        if int(distance) < (1 * parsec2ly):
+        if int(distance) < 1:
             return 'A.'
-        elif (1 * parsec2ly) < int(distance) < (40000 * parsec2ly):
+        elif 1 < int(distance) < 40000:
             return 'B.'
-        elif (40000 * parsec2ly) < int(distance) < (100000000 * parsec2ly):
+        elif 40000 < int(distance) < 100000000:
             return 'C.'
-        elif (100000000 * parsec2ly) <= int(distance):
+        elif 100000000 <= int(distance):
             return 'D.'
     else:
         return 'E.'
@@ -59,36 +69,50 @@ def assign_letter(subject_category, distance):
     
 def avm_lookup(distance, category):
     '''
-    Returns an AVM subject category for a Hubblesite subject category
+    Returns an AVM subject category number and word for a Hubblesite subject 
+    category
     '''
 
-    dict = subcat_dictionary()
-    avm_category = []
-    
+    number_dict = hs2avm_number()
+    word_dict = hs2avm_word()
+    avm_number = []
+    avm_word = []
+
     try:
         # Build up AVM category
         for cat in category:
             if cat == 'Galaxy > Interacting':
                 letter = assign_letter(cat, distance)
-                subcat = letter + '5.1.7, ' + letter + '5.5.2'
-                avm_category.append(subcat)
+                subcat_num = letter + '5.1.7, ' + letter + '5.5.2'
+                subcat_word = 'Galaxy.Interacting, Galaxy.Multiple'
+                avm_word.append(subcat_word)
+                avm_number.append(subcat_num)
                 print '\tAVM subject category found for', cat, '\n'
+            elif cat == 'Miscellaneous' or cat == 'unknown':
+                avm_number, avm_word = [], []
             else:
-                subcat = assign_letter(cat, distance) 
-                subcat += dict[cat]
-                avm_category.append(subcat)
+                subcat_num = assign_letter(cat, distance) 
+                subcat_num += number_dict[cat]
+                avm_number.append(subcat_num)
+
+                # Strip avm_number of letter, if it exists, for lookup
+                if subcat_num[0].isalpha() == True:
+                    subcat_num = subcat_num[2:]
+                subcat_word = word_dict[subcat_num]
+                avm_word.append(subcat_word)
                 print '\tAVM subject category found for', cat, '\n'
     
-        # Convert avm_category list to string
-        avm_category = '; '.join(avm_category)
-    
+        # Convert avm lists to strings
+        avm_number = '; '.join(avm_number)
+        avm_word = '; '.join(avm_word)
+
     except:
         print '***** No AVM category specified for', cat, '*****'
-        print 'Please add appropriate entry to subcat_dictionary.py'
+        print 'Please add appropriate entry to dictionaries'
         print 'Quitting process\n\n'
         sys.exit()
     
-    return avm_category
+    return avm_number, avm_word
         
 # -----------------------------------------------------------------------------
 
@@ -129,7 +153,7 @@ def prep_image_info(image_info):
     
 # -----------------------------------------------------------------------------
 
-def prep_output(root, year, release, image, avm_category, hs_category):
+def prep_output(root, year, release, image, avm_number, avm_word, hs_category):
     '''
     Constructs a file with the year, release, image and subject category 
     information.  The file may contain duplicates.
@@ -141,13 +165,15 @@ def prep_output(root, year, release, image, avm_category, hs_category):
     # Create ouput file if it doesn't already exist, write header
     if not os.path.exists(root + 'subcat_out.dat'):
         file = open(root + 'subcat_out.dat', 'w')
-        file.write('year%release%image%Subject.Category' + '\n')
+        file.write('year%release%image%avm number%avm word%Subject.Category'
+                    + '\n')
         file.close()
     
     # Append file with new information
     file = open(root + 'subcat_out.dat', 'a')
     file.write(year + '%' + release + '%' + image + '%' +  \
-               avm_category.replace(' ', '') + '; ' + hs_category + '\n')
+               avm_number.replace(' ', '') + '%' + avm_word.replace(' ','') + 
+               '%' + hs_category + '\n')
     file.close()
         
 # -----------------------------------------------------------------------------
@@ -163,8 +189,7 @@ def read_data_file(root):
     # Construct lists for each variable
     print '\n*** Reading in data from subcat_in.dat ***\n'
     for line in file(root + 'subcat_in.dat'):
-        line_elements = [x for x in line.split('|%')]
-        print line_elements
+        line_elements = [x for x in line.split('%')]
 
         image_info.append(line_elements[0])
         hs_subcat.append(line_elements[1])
@@ -175,26 +200,26 @@ def read_data_file(root):
 
 # -----------------------------------------------------------------------------
 
-def update_obj_dict(root, object, avm_category):
+def update_obj_dict(root, year, release, image, object, distance, avm_number, 
+                    avm_word, hs_subcat):
     '''
     Updates obj_dict.dat with object name and avm_category information.
     '''
-    
-    obj_list = object.split(';')
-    avm_list = avm_category.split(';')
 
-    obj_in_dict = [line.split('|')[0] for line in file(root + 'obj_dict.dat')]
+    # Rebuild press release string
+    pr = year + '-' + release + '-' + image
+
+    pr_in_dict = [line.split('|')[0] for line in file(root + 'obj_dict.dat')]
     
-    for obj, avm in zip(obj_list, avm_list):
-    
-        # Add entry to object dictionary if its not already in there
-        if obj not in obj_in_dict:
-            print '\tAdding', obj, 'to dictionary'
-            dict = open(root + 'obj_dict.dat', 'a')
-            dict.write(obj + '|' + avm + '\n')
-            dict.close()
-        else:
-            pass
+    # Add entry to object dictionary if its not already in there
+    if pr not in pr_in_dict:
+        print '\tAdding', pr, 'to dictionary'
+        dict = open(root + 'obj_dict.dat', 'a')
+        dict.write(pr + '|' + object + '|' + distance + '|' + avm_number + \
+                  '|' + avm_word + '|' + hs_subcat + '\n')
+        dict.close()
+    else:
+        pass
     
 # -----------------------------------------------------------------------------
 
@@ -244,9 +269,11 @@ def subcat_lookup():
                                                               distance, 
                                                               new_hs_subcat,
                                                               hs_subcat):
-        avm = avm_lookup(dist, new_hs_cat)
-        update_obj_dict(root, obj, avm)
-        prep_output(root, yr, rel, im, avm, old_hs_cat)
+        avm_num, avm_word = avm_lookup(dist, new_hs_cat)
+        update_obj_dict(root, yr, rel, im, obj, dist, avm_num, avm_word, 
+                        old_hs_cat)
+
+        prep_output(root, yr, rel, im, avm_num, avm_word, old_hs_cat)
     
     write_output(root)
             
