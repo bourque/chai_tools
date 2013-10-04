@@ -10,8 +10,9 @@ essential to have obj_dict.dat, subcat_in.dat and subcat_lookup.py files in the
 current working directory.
 
 VERSION:
-02 - input should contain id, object name, hs subject category and distance
-     (%-separated).  The distance is optional.
+03 - Now able to assign multiple AVM subject categories. Also, if the HS
+    subject category involves the Magellanic Cloud, a letter of 'C' is
+    automatically assigned.
 
 AUTHOR:
 Matthew Bourque
@@ -19,7 +20,7 @@ Space Telescope Science Institute
 bourque@stsci.edu
 
 LAST UPDATED:
-08/30/12 (Bourque)
+09/06/12 (Bourque)
 '''
 
 import os
@@ -29,12 +30,16 @@ from subcat_dictionary import *
 
 # -----------------------------------------------------------------------------
 
-def assign_letter(distance):
+def assign_letter(subject_category, distance):
     '''
     Returns the letter A, B, C, D or E based on AVM top level taxonomy and
     the object's distance.
     '''
     
+    if subject_category == 'Galaxy > Magellanic Clouds':
+        return 'C.'
+    if subject_category == 'Galaxy > Magellanic Cloud':
+        return 'C.'
     if distance == '':
         return ''
     elif distance.isdigit() == True:
@@ -62,10 +67,16 @@ def avm_lookup(distance, category):
     try:
         # Build up AVM category
         for cat in category:
-            subcat = assign_letter(distance)
-            subcat += dict[cat]
-            avm_category.append(subcat)
-            print '\tAVM subject category found for', cat, '\n'
+            if cat == 'Galaxy > Interacting':
+                letter = assign_letter(cat, distance)
+                subcat = letter + '5.1.7, ' + letter + '5.5.2'
+                avm_category.append(subcat)
+                print '\tAVM subject category found for', cat, '\n'
+            else:
+                subcat = assign_letter(cat, distance) 
+                subcat += dict[cat]
+                avm_category.append(subcat)
+                print '\tAVM subject category found for', cat, '\n'
     
         # Convert avm_category list to string
         avm_category = '; '.join(avm_category)
