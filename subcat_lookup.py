@@ -10,9 +10,9 @@ essential to have obj_dict.dat, subcat_in.dat and subcat_lookup.py files in the
 current working directory.
 
 VERSION:
-07 - Handles distances in LY and distances of letter 'D', in which an avm letter
-     of 'D' is used in the avm_number.  Also adds all information to the object
-     dictionary.  Also handels redshifts that begin with '-,'
+08 - Outputs AVM subject category word instead of HS subject category. Also
+     ensures no duplicate AVM subject category word in output and in
+     'dictionary' 
 
 AUTHOR:
 Matthew Bourque
@@ -20,7 +20,7 @@ Space Telescope Science Institute
 bourque@stsci.edu
 
 LAST UPDATED:
-10/23/12 (Bourque)
+12/06/12 (Bourque)
 '''
 
 import os
@@ -153,27 +153,30 @@ def prep_image_info(image_info):
     
 # -----------------------------------------------------------------------------
 
-def prep_output(root, year, release, image, avm_number, avm_word, hs_category):
+def prep_output(root, year, release, image, avm_number, avm_word):
     '''
     Constructs a file with the year, release, image and subject category 
     information.  The file may contain duplicates.
     '''
-    
-    # Replace '&gt' in hs_category with '>'
-    hs_category = hs_category.replace('&gt;','>')
+
+    # Remove duplicate avm_word and avn_number
+    avm_word = avm_word.split('; ')
+    avm_word = set(avm_word)
+    avm_word = ', '.join(avm_word)
+    avm_number = avm_number.split('; ')
+    avm_number = set(avm_number)
+    avm_number = ', '.join(avm_number)
         
     # Create ouput file if it doesn't already exist, write header
     if not os.path.exists(root + 'subcat_out.dat'):
         file = open(root + 'subcat_out.dat', 'w')
-        file.write('year%release%image%avm number%avm word%Subject.Category'
-                    + '\n')
+        file.write('year%release%image%avm number%avm word' + '\n')
         file.close()
     
     # Append file with new information
     file = open(root + 'subcat_out.dat', 'a')
-    file.write(year + '%' + release + '%' + image + '%' +  \
-               avm_number.replace(' ', '') + '%' + avm_word.replace(' ','') + 
-               '%' + hs_category + '\n')
+    file.write(year + '%' + release + '%' + image + '%' +  avm_number + '%' 
+               + 'X.' + avm_word + '\n')
     file.close()
         
 # -----------------------------------------------------------------------------
@@ -201,7 +204,7 @@ def read_data_file(root):
 # -----------------------------------------------------------------------------
 
 def update_obj_dict(root, year, release, image, object, distance, avm_number, 
-                    avm_word, hs_subcat):
+                    avm_word):
     '''
     Updates obj_dict.dat with object name and avm_category information.
     '''
@@ -210,13 +213,21 @@ def update_obj_dict(root, year, release, image, object, distance, avm_number,
     pr = year + '-' + release + '-' + image
 
     pr_in_dict = [line.split('|')[0] for line in file(root + 'obj_dict.dat')]
+
+    # Remove duplicate avm_word and avn_number
+    avm_word = avm_word.split('; ')
+    avm_word = set(avm_word)
+    avm_word = ', '.join(avm_word)
+    avm_number = avm_number.split('; ')
+    avm_number = set(avm_number)
+    avm_number = ', '.join(avm_number)
     
     # Add entry to object dictionary if its not already in there
     if pr not in pr_in_dict:
         print '\tAdding', pr, 'to dictionary'
         dict = open(root + 'obj_dict.dat', 'a')
         dict.write(pr + '|' + object + '|' + distance + '|' + avm_number + \
-                  '|' + avm_word + '|' + hs_subcat + '\n')
+                  '; ' + 'X.' + avm_word + '\n')
         dict.close()
     else:
         pass
@@ -264,16 +275,13 @@ def subcat_lookup():
     new_hs_subcat = prep_hs_subcat(hs_subcat)
     
     # For each instance of data, find AVM category and write to output file.
-    for yr, rel, im, obj, dist, new_hs_cat, old_hs_cat in zip(year, release, 
-                                                              image, object, 
-                                                              distance, 
-                                                              new_hs_subcat,
-                                                              hs_subcat):
+    for yr, rel, im, obj, dist, new_hs_cat in zip(year, release, image, 
+                                                  object, distance, 
+                                                  new_hs_subcat):
         avm_num, avm_word = avm_lookup(dist, new_hs_cat)
-        update_obj_dict(root, yr, rel, im, obj, dist, avm_num, avm_word, 
-                        old_hs_cat)
+        update_obj_dict(root, yr, rel, im, obj, dist, avm_num, avm_word)
 
-        prep_output(root, yr, rel, im, avm_num, avm_word, old_hs_cat)
+        prep_output(root, yr, rel, im, avm_num, avm_word)
     
     write_output(root)
             
