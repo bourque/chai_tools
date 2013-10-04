@@ -10,9 +10,7 @@ essential to have obj_dict.dat, subcat_in.dat and subcat_lookup.py files in the
 current working directory.
 
 VERSION:
-08 - Outputs AVM subject category word instead of HS subject category. Also
-     ensures no duplicate AVM subject category word in output and in
-     'dictionary' 
+09 - Replaces distances of 'D' with '-' for output. 
 
 AUTHOR:
 Matthew Bourque
@@ -20,7 +18,7 @@ Space Telescope Science Institute
 bourque@stsci.edu
 
 LAST UPDATED:
-12/06/12 (Bourque)
+01/25/13 (Bourque)
 '''
 
 import os
@@ -211,6 +209,9 @@ def update_obj_dict(root, year, release, image, object, distance, avm_number,
 
     # Rebuild press release string
     pr = year + '-' + release + '-' + image
+
+    # Replace distance of 'D' with '-'
+    distance = distance.replace('D', '-')
 
     pr_in_dict = [line.split('|')[0] for line in file(root + 'obj_dict.dat')]
 
