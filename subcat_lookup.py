@@ -10,10 +10,8 @@ essential to have obj_dict.dat, subcat_in.dat and subcat_lookup.py files in the
 current working directory.
 
 VERSION:
-04 - Refactored output to include a table of press release, subject name,
-     distance (in parsec), Hubblesite Subject Category, AVM Letter and AVM 
-     number.  Some minor adjustments made to avm_lookup function in order 
-     to isolate letter. 
+05 - A small adjustment from version 03 to handel distances in lightyears
+     instead of parsecs. Also, the input should be separated by "|%"
 
 AUTHOR:
 Matthew Bourque
@@ -21,15 +19,13 @@ Space Telescope Science Institute
 bourque@stsci.edu
 
 LAST UPDATED:
-09/21/12 (Bourque)
+09/24/12 (Bourque)
 '''
 
 import os
 import sys
 import subcat_dictionary
 from subcat_dictionary import *
-import pyExcelerator
-from pyExcelerator import *
 
 # -----------------------------------------------------------------------------
 
@@ -38,24 +34,26 @@ def assign_letter(subject_category, distance):
     Returns the letter A, B, C, D or E based on AVM top level taxonomy and
     the object's distance.
     '''
+
+    parsec2ly = 3.26163344
     
     if subject_category == 'Galaxy > Magellanic Clouds':
-        return 'C'
+        return 'C.'
     if subject_category == 'Galaxy > Magellanic Cloud':
-        return 'C'
-    if distance == '' or distance == '0':
+        return 'C.'
+    if distance == '':
         return ''
     elif distance.isdigit() == True:
-        if int(distance) < 1:
-            return 'A'
-        elif 1 < int(distance) < 40000:
-            return 'B'
-        elif 40000 < int(distance) < 100000000:
-            return 'C'
-        elif 100000000 <= int(distance):
-            return 'D'
+        if int(distance) < (1 * parsec2ly):
+            return 'A.'
+        elif (1 * parsec2ly) < int(distance) < (40000 * parsec2ly):
+            return 'B.'
+        elif (40000 * parsec2ly) < int(distance) < (100000000 * parsec2ly):
+            return 'C.'
+        elif (100000000 * parsec2ly) <= int(distance):
+            return 'D.'
     else:
-        return 'E'
+        return 'E.'
 
 # -----------------------------------------------------------------------------
     
@@ -65,17 +63,24 @@ def avm_lookup(distance, category):
     '''
 
     dict = subcat_dictionary()
+    avm_category = []
+    
     try:
         # Build up AVM category
         for cat in category:
             if cat == 'Galaxy > Interacting':
-                avm_letter = assign_letter(cat, distance)
-                avm_subcat = '5.1.7, 5.5.2'
+                letter = assign_letter(cat, distance)
+                subcat = letter + '5.1.7, ' + letter + '5.5.2'
+                avm_category.append(subcat)
                 print '\tAVM subject category found for', cat, '\n'
             else:
-                avm_letter = assign_letter(cat, distance) 
-                avm_subcat = dict[cat]
+                subcat = assign_letter(cat, distance) 
+                subcat += dict[cat]
+                avm_category.append(subcat)
                 print '\tAVM subject category found for', cat, '\n'
+    
+        # Convert avm_category list to string
+        avm_category = '; '.join(avm_category)
     
     except:
         print '***** No AVM category specified for', cat, '*****'
@@ -83,7 +88,7 @@ def avm_lookup(distance, category):
         print 'Quitting process\n\n'
         sys.exit()
     
-    return avm_letter, avm_subcat
+    return avm_category
         
 # -----------------------------------------------------------------------------
 
@@ -103,28 +108,46 @@ def prep_hs_subcat(hs_subcat):
         preped_hs_subcat.append(item)
     
     return preped_hs_subcat
+
+# -----------------------------------------------------------------------------
+
+def prep_image_info(image_info):
+    '''
+    Takes an STPR release info data string and splits it up into year, 
+    release number and image letter
+    '''
+    
+    (year, release, image) = [], [], []
+    
+    for item in image_info:
+        info_elements = [x for x in item.split('-')]
+        year.append(info_elements[0])
+        release.append(info_elements[1])
+        image.append(info_elements[2])
+  
+    return year, release, image
     
 # -----------------------------------------------------------------------------
 
-def prep_output(root, press_rel, object, hs_category, avm_letter, avm_subcat):
+def prep_output(root, year, release, image, avm_category, hs_category):
     '''
-    Constructs a file with the year, release, image, object, HS category,
-    avm letter and avm category information.
+    Constructs a file with the year, release, image and subject category 
+    information.  The file may contain duplicates.
     '''
     
-    # Convert hs_category from list to string
-    hs_category = ', '.join(hs_category)
+    # Replace '&gt' in hs_category with '>'
+    hs_category = hs_category.replace('&gt;','>')
         
     # Create ouput file if it doesn't already exist, write header
     if not os.path.exists(root + 'subcat_out.dat'):
         file = open(root + 'subcat_out.dat', 'w')
-        file.write('PR|Subj|HS SubCat|AVM letter|AVM SubCat' + '\n')
+        file.write('year%release%image%Subject.Category' + '\n')
         file.close()
     
     # Append file with new information
     file = open(root + 'subcat_out.dat', 'a')
-    file.write(press_rel + '|' +  object + '|' + hs_category + '|' + \
-               avm_letter + '|' + avm_subcat + '\n')
+    file.write(year + '%' + release + '%' + image + '%' +  \
+               avm_category.replace(' ', '') + '; ' + hs_category + '\n')
     file.close()
         
 # -----------------------------------------------------------------------------
@@ -135,19 +158,20 @@ def read_data_file(root):
     distance and hubblesite category
     '''
     
-    (press_rel, hs_subcat, object, distance) = [], [], [], []
+    (image_info, hs_subcat, object, distance) = [], [], [], []
     
     # Construct lists for each variable
     print '\n*** Reading in data from subcat_in.dat ***\n'
     for line in file(root + 'subcat_in.dat'):
-        line_elements = [x for x in line.split('%')]
+        line_elements = [x for x in line.split('|%')]
+        print line_elements
 
-        press_rel.append(line_elements[0])
+        image_info.append(line_elements[0])
         hs_subcat.append(line_elements[1])
         object.append(line_elements[2])
         distance.append(line_elements[3])
 
-    return press_rel, hs_subcat, object, distance
+    return image_info, hs_subcat, object, distance
 
 # -----------------------------------------------------------------------------
 
@@ -171,57 +195,10 @@ def update_obj_dict(root, object, avm_category):
             dict.close()
         else:
             pass
-
-# -----------------------------------------------------------------------------
-
-def write_excel_output(root):
-    '''
-    Constructions the output file subcat_out.xls.
-    '''
-
-    (press_rel, object, hs_subcat, avm_letter, avm_subcat) = [], [], [], [], [],
-   
-    # Read in columns in subcat_out.dat
-    for line in file(root + 'subcat_out.dat'):
-        line_elements = [x for x in line.split('|')]
-
-        press_rel.append(line_elements[0])
-        object.append(line_elements[1])
-        hs_subcat.append(line_elements[2])
-        avm_letter.append(line_elements[3])
-        avm_subcat.append(line_elements[4])
-
-    # Create Excel workbook
-    workbook = Workbook()
-    docsheet = workbook.add_sheet('sheet1')
-
-    # Row Counter
-    row = 0
-
-    # Set styles
-    font = Font()
-    font.bold = True
-    fontstyle = XFStyle()
-    fontstyle.font = font
-    docsheet.row(0).set_style(fontstyle)
-
-    # Write columns to excel file
-    for pr, obj, hs_cat, letter, avm_cat in zip(press_rel, object, hs_subcat,
-                                                avm_letter, avm_subcat):
-
-        docsheet.write(row, 0, pr)
-        docsheet.write(row, 1, obj)
-        docsheet.write(row, 2, hs_cat)
-        docsheet.write(row, 3, letter)
-        docsheet.write(row, 4, avm_cat)
-        row = row + 1
-
-    # Save the workbook
-    workbook.save(root + 'subcat_out.xls')
     
 # -----------------------------------------------------------------------------
 
-def write_text_output(root):
+def write_output(root):
     '''
     Constructs the output file subcat_out.dat with year, release, iamge and
     subject category information and ensures that there are no duplicate
@@ -255,19 +232,23 @@ def subcat_lookup():
     root = os.getcwd() + '/'
 
     # Read in data
-    press_rel, hs_subcat, object, distance = read_data_file(root)
+    image_info, hs_subcat, object, distance = read_data_file(root)
     
     # Prep data for other functions
+    year, release, image = prep_image_info(image_info)
     new_hs_subcat = prep_hs_subcat(hs_subcat)
-  
-    # For each instance of data, find AVM category and write to output file.
-    for rel, obj, dist, new_hs_cat in zip(press_rel, object, distance, 
-                                          new_hs_subcat,):
-        avm_letter, avm_subcat = avm_lookup(dist, new_hs_cat)
-        prep_output(root, rel, obj, new_hs_cat, avm_letter, avm_subcat)
     
-    write_text_output(root)
-    write_excel_output(root)
+    # For each instance of data, find AVM category and write to output file.
+    for yr, rel, im, obj, dist, new_hs_cat, old_hs_cat in zip(year, release, 
+                                                              image, object, 
+                                                              distance, 
+                                                              new_hs_subcat,
+                                                              hs_subcat):
+        avm = avm_lookup(dist, new_hs_cat)
+        update_obj_dict(root, obj, avm)
+        prep_output(root, yr, rel, im, avm, old_hs_cat)
+    
+    write_output(root)
             
     print '\nOutput file written to', root + 'subcat_out.dat\n'
    
